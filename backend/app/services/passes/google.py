@@ -92,12 +92,10 @@ class GoogleWalletService:
             payload["hexBackgroundColor"] = self._brand.primary_color
 
         if self._brand.logo_url:
-            logo = {
+            payload["programLogo"] = {
                 "sourceUri": {"uri": self._brand.logo_url},
                 "contentDescription": {"defaultValue": {"language": "en-US", "value": self._brand.name}},
             }
-            payload["logo"] = logo
-            payload["programLogo"] = logo
 
         # Hero photo at the bottom of the card (1032×336px recommended)
         if self._brand.google_hero_image_url:
@@ -115,16 +113,6 @@ class GoogleWalletService:
                     "body": f"Collect {threshold} stamps for a free reward.",
                 }
             ]
-
-        # Custom stamp image — replaces the default empty circles
-        # One StampInfo entry per stamp slot; Google fills them left-to-right
-        # based on loyaltyPoints.balance (must be an integer, not a string)
-        if self._brand.google_stamp_image_url:
-            stamp_img = {
-                "sourceUri": {"uri": self._brand.google_stamp_image_url},
-                "contentDescription": {"defaultValue": {"language": "en-US", "value": "Stamp"}},
-            }
-            payload["stampInfos"] = [{"stampImage": stamp_img} for _ in range(threshold)]
 
         return payload
 

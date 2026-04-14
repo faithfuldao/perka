@@ -8,8 +8,8 @@ import google.auth.transport.requests
 
 SERVICE_ACCOUNT_JSON = "backend/perka-493308-5232764f250e.json"
 ISSUER_ID = "3388000000023114440"
-CLASS_ID = f"{ISSUER_ID}.Unusual_Loyalty2"
-OBJECT_ID = f"{ISSUER_ID}.victor_test_3"
+CLASS_ID = f"{ISSUER_ID}.Unusual_Loyalty3"
+OBJECT_ID = f"{ISSUER_ID}.victor_test_4"
 
 with open(SERVICE_ACCOUNT_JSON) as f:
     sa = json.load(f)
@@ -48,10 +48,6 @@ class_payload = {
     "rewardsTierLabel": "Collect stamps",
     "rewardsTier": f"Free reward at {REWARD_THRESHOLD} stamps",
     "hexBackgroundColor": PRIMARY_COLOR,
-    "logo": {
-        "sourceUri": {"uri": LOGO_URL},
-        "contentDescription": {"defaultValue": {"language": "en-US", "value": "UNUSUAL"}},
-    },
     "programLogo": {
         "sourceUri": {"uri": LOGO_URL},
         "contentDescription": {"defaultValue": {"language": "en-US", "value": "UNUSUAL"}},
@@ -64,15 +60,6 @@ class_payload = {
         "sourceUri": {"uri": LOGO_URL},
         "contentDescription": {"defaultValue": {"language": "en-US", "value": "UNUSUAL"}},
     },
-    "stampInfos": [
-        {
-            "stampImage": {
-                "sourceUri": {"uri": STAMP_IMAGE_URL},
-                "contentDescription": {"defaultValue": {"language": "en-US", "value": "Stamp"}},
-            }
-        }
-        for _ in range(REWARD_THRESHOLD)
-    ],
 }
 
 # Verify class exists, create it if not
