@@ -11,6 +11,7 @@ from app.database import get_db
 from app.models.pass_ import Pass, PassPlatform
 from app.models.staff import Staff
 from app.schemas.pass_ import AwardPointsRequest, AwardPointsResponse, PassRead
+from app.services.passes.apple import AppleWalletService
 from app.services.passes.google import GoogleWalletService
 from app.services.points import award_points
 
@@ -76,8 +77,8 @@ async def award_visit_points(
         staff=current_staff,
     )
 
-    # Reload brand to read reward_threshold and Google credentials
-    await db.refresh(loyalty_pass, ["brand"])
+    # Reload brand and user to read credentials and rebuild Apple pass.json
+    await db.refresh(loyalty_pass, ["brand", "user"])
     reward_earned = loyalty_pass.points >= loyalty_pass.brand.reward_threshold
 
     save_url: str | None = None
@@ -91,6 +92,17 @@ async def award_visit_points(
             # Log but do not fail the request — points are already committed.
             logger.exception(
                 "Google Wallet PATCH failed for pass %s; points were still awarded.",
+                serial_number,
+            )
+
+    elif loyalty_pass.platform == PassPlatform.apple:
+        try:
+            svc = AppleWalletService(loyalty_pass.brand)
+            await svc.update_pass_points(loyalty_pass, loyalty_pass.user)
+        except Exception:
+            # Best-effort: points are committed; pass will sync on next open.
+            logger.exception(
+                "Apple Wallet rebuild failed for pass %s; points were still awarded.",
                 serial_number,
             )
 

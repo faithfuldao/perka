@@ -13,6 +13,7 @@ from app.models.location import Location
 from app.models.pass_ import Pass, PassPlatform
 from app.models.user import User
 from app.schemas.brand import BrandRead
+from app.services.passes.apple import AppleWalletService
 from app.services.passes.google import GoogleWalletService
 
 logger = logging.getLogger(__name__)
@@ -83,9 +84,6 @@ async def enroll(
 
     If the user already has a pass for this brand + platform combination,
     a fresh save URL is generated for the existing pass.
-
-    Currently only ``platform="google"`` is wired to a live wallet service.
-    Apple returns a placeholder URL until Apple Wallet integration is complete.
     """
     location = await _get_location_by_token(db, qr_token)
     brand = location.brand
@@ -94,6 +92,12 @@ async def enroll(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="This brand is not configured for Google Wallet.",
+        )
+
+    if body.platform == PassPlatform.apple and not brand.apple_pass_type_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="This brand is not configured for Apple Wallet.",
         )
 
     # Require at least one contact identifier
@@ -121,7 +125,8 @@ async def enroll(
             svc = GoogleWalletService(brand)
             save_url = svc.build_save_url(existing_pass)
         else:
-            save_url = _apple_placeholder_url(existing_pass)
+            svc = AppleWalletService(brand)
+            save_url = await svc.create_pass(existing_pass, user)
         return EnrollResponse(save_url=save_url)
 
     # Create a new Pass record
@@ -143,8 +148,8 @@ async def enroll(
         new_pass.platform_pass_id = svc.object_id(new_pass)
         await db.flush()
     else:
-        # Apple Wallet integration is handled separately
-        save_url = _apple_placeholder_url(new_pass)
+        svc = AppleWalletService(brand)
+        save_url = await svc.create_pass(new_pass, user)
 
     return EnrollResponse(save_url=save_url)
 
@@ -192,7 +197,3 @@ async def _find_or_create_user(
     await db.refresh(user)
     return user
 
-
-def _apple_placeholder_url(pass_obj: Pass) -> str:
-    """Placeholder until Apple Wallet pass generation is implemented."""
-    return f"https://perka.app/passes/apple/{pass_obj.serial_number}"
