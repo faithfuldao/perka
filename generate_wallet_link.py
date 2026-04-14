@@ -8,8 +8,8 @@ import google.auth.transport.requests
 
 SERVICE_ACCOUNT_JSON = "backend/perka-493308-5232764f250e.json"
 ISSUER_ID = "3388000000023114440"
-CLASS_ID = f"{ISSUER_ID}.Unusual_Loyalty"
-OBJECT_ID = f"{ISSUER_ID}.victor_test_1"
+CLASS_ID = f"{ISSUER_ID}.Unusual_Loyalty2"
+OBJECT_ID = f"{ISSUER_ID}.victor_test_3"
 
 with open(SERVICE_ACCOUNT_JSON) as f:
     sa = json.load(f)
@@ -30,30 +30,72 @@ object_payload = {
     "accountId": "victor_test",
     "accountName": "Victor",
     "loyaltyPoints": {
-        "balance": {"string": "0"},
-        "label": "Points"
+        "balance": {"int": 0},
+        "label": "Stamps"
     },
 }
 
-# Verify class exists and approve it
+STAMP_IMAGE_URL = "https://raw.githubusercontent.com/FaithfulDao/perka/master/public/goldenRetreiverIcon.png"
+LOGO_URL        = "https://raw.githubusercontent.com/FaithfulDao/perka/master/public/finalUnusualIcon.png"
+PRIMARY_COLOR   = "#b47dcb"
+REWARD_THRESHOLD = 10
+
+class_payload = {
+    "id": CLASS_ID,
+    "issuerName": "UNUSUAL",
+    "programName": "UNUSUAL",
+    "reviewStatus": "underReview",
+    "rewardsTierLabel": "Collect stamps",
+    "rewardsTier": f"Free reward at {REWARD_THRESHOLD} stamps",
+    "hexBackgroundColor": PRIMARY_COLOR,
+    "logo": {
+        "sourceUri": {"uri": LOGO_URL},
+        "contentDescription": {"defaultValue": {"language": "en-US", "value": "UNUSUAL"}},
+    },
+    "programLogo": {
+        "sourceUri": {"uri": LOGO_URL},
+        "contentDescription": {"defaultValue": {"language": "en-US", "value": "UNUSUAL"}},
+    },
+    "heroImage": {
+        "sourceUri": {"uri": LOGO_URL},
+        "contentDescription": {"defaultValue": {"language": "en-US", "value": "UNUSUAL"}},
+    },
+    "wordMark": {
+        "sourceUri": {"uri": LOGO_URL},
+        "contentDescription": {"defaultValue": {"language": "en-US", "value": "UNUSUAL"}},
+    },
+    "stampInfos": [
+        {
+            "stampImage": {
+                "sourceUri": {"uri": STAMP_IMAGE_URL},
+                "contentDescription": {"defaultValue": {"language": "en-US", "value": "Stamp"}},
+            }
+        }
+        for _ in range(REWARD_THRESHOLD)
+    ],
+}
+
+# Verify class exists, create it if not
 rc = httpx.get(
     f"https://walletobjects.googleapis.com/walletobjects/v1/loyaltyClass/{CLASS_ID}",
     headers=headers
 )
 print(f"Class check: {rc.status_code} — ID used: {CLASS_ID}")
-if rc.status_code != 200:
-    print(f"Class not found: {rc.text}")
-    exit(1)
-
-# Set class to APPROVED if not already
-class_data = rc.json()
-if class_data.get("reviewStatus") != "approved":
-    patch = httpx.patch(
-        f"https://walletobjects.googleapis.com/walletobjects/v1/loyaltyClass/{CLASS_ID}",
+if rc.status_code == 404:
+    rc = httpx.post(
+        "https://walletobjects.googleapis.com/walletobjects/v1/loyaltyClass",
         headers=headers,
-        json={"reviewStatus": "underReview"}
+        json=class_payload,
     )
-    print(f"Class status update: {patch.status_code}")
+    if rc.status_code not in (200, 201):
+        print(f"Failed to create class: {rc.status_code} {rc.text}")
+        exit(1)
+    print("Class created.")
+elif rc.status_code != 200:
+    print(f"Unexpected error checking class: {rc.text}")
+    exit(1)
+else:
+    print("Class already exists.")
 
 # Always overwrite the object with correct data
 r = httpx.get(
