@@ -8,8 +8,8 @@ import google.auth.transport.requests
 
 SERVICE_ACCOUNT_JSON = "backend/perka-493308-5232764f250e.json"
 ISSUER_ID = "3388000000023114440"
-CLASS_ID = f"{ISSUER_ID}.Unusual_Loyalty3"
-OBJECT_ID = f"{ISSUER_ID}.victor_test_4"
+CLASS_ID = f"{ISSUER_ID}.Unusual_Loyalt6"
+OBJECT_ID = f"{ISSUER_ID}.victor_test_6"
 
 with open(SERVICE_ACCOUNT_JSON) as f:
     sa = json.load(f)
@@ -36,14 +36,14 @@ object_payload = {
 }
 
 STAMP_IMAGE_URL = "https://raw.githubusercontent.com/FaithfulDao/perka/master/public/goldenRetreiverIcon.png"
-LOGO_URL        = "https://raw.githubusercontent.com/FaithfulDao/perka/master/public/finalUnusualIcon.png"
-PRIMARY_COLOR   = "#b47dcb"
+LOGO_URL        = "https://raw.githubusercontent.com/FaithfulDao/perka/master/public/unusualFinalIcon.jpg"
+PRIMARY_COLOR   = "#F9D3F9"#b47dcb
 REWARD_THRESHOLD = 10
 
 class_payload = {
     "id": CLASS_ID,
-    "issuerName": "UNUSUAL",
-    "programName": "UNUSUAL",
+    "issuerName": "Unusual",
+    "programName": "포인트 적립",
     "reviewStatus": "underReview",
     "rewardsTierLabel": "Collect stamps",
     "rewardsTier": f"Free reward at {REWARD_THRESHOLD} stamps",
