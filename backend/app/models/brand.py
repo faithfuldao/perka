@@ -37,6 +37,12 @@ class Brand(Base):
     google_wallet_class_id: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     # Service account JSON stored as a dict (overrides the file-path fallback)
     google_service_account_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    # Wide hero photo shown at the bottom of the pass (1032×336 recommended)
+    google_hero_image_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    # Small icon used as stamp image instead of the default circle (200×200 recommended)
+    google_stamp_image_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    # Large subtitle shown on the card, e.g. "Specialty coffee & pastries"
+    google_card_title: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

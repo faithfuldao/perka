@@ -77,30 +77,54 @@ class GoogleWalletService:
 
     def _build_class_payload(self) -> dict[str, Any]:
         """Build the loyalty class payload with full brand styling."""
+        threshold = self._brand.reward_threshold
         payload: dict[str, Any] = {
             "id": self._class_id(),
             "issuerName": self._brand.name,
             "programName": self._brand.name,
             "reviewStatus": "underReview",
+            # Reward tier text: "Collect 10 stamps to receive Free coffee"
+            "rewardsTierLabel": "Collect stamps",
+            "rewardsTier": f"Free reward at {threshold} stamps",
         }
 
         if self._brand.primary_color:
             payload["hexBackgroundColor"] = self._brand.primary_color
 
         if self._brand.logo_url:
-            payload["logo"] = {
+            logo = {
                 "sourceUri": {"uri": self._brand.logo_url},
                 "contentDescription": {"defaultValue": {"language": "en-US", "value": self._brand.name}},
             }
-            payload["programLogo"] = payload["logo"]
+            payload["logo"] = logo
+            payload["programLogo"] = logo
 
-        payload["textModulesData"] = [
-            {
-                "id": "reward_info",
-                "header": "How it works",
-                "body": f"Earn 1 point per visit. Collect {self._brand.reward_threshold} points for a free reward!",
+        # Hero photo at the bottom of the card (1032×336px recommended)
+        if self._brand.google_hero_image_url:
+            payload["heroImage"] = {
+                "sourceUri": {"uri": self._brand.google_hero_image_url},
+                "contentDescription": {"defaultValue": {"language": "en-US", "value": self._brand.name}},
             }
-        ]
+
+        # Large subtitle shown on the card front, e.g. "Specialty coffee & pastries"
+        if self._brand.google_card_title:
+            payload["textModulesData"] = [
+                {
+                    "id": "card_title",
+                    "header": self._brand.google_card_title,
+                    "body": f"Collect {threshold} stamps for a free reward.",
+                }
+            ]
+
+        # Custom stamp image — replaces the default empty circles
+        # One StampInfo entry per stamp slot; Google fills them left-to-right
+        # based on loyaltyPoints.balance (must be an integer, not a string)
+        if self._brand.google_stamp_image_url:
+            stamp_img = {
+                "sourceUri": {"uri": self._brand.google_stamp_image_url},
+                "contentDescription": {"defaultValue": {"language": "en-US", "value": "Stamp"}},
+            }
+            payload["stampInfos"] = [{"stampImage": stamp_img} for _ in range(threshold)]
 
         return payload
 
@@ -163,18 +187,16 @@ class GoogleWalletService:
             "state": "ACTIVE",
             "accountId": account_id,
             "accountName": account_name,
+            # balance must be an integer (not a string) for Google to render
+            # the stamp grid — it fills N stamps out of the total in stampInfos
             "loyaltyPoints": {
-                "balance": {"string": str(points)},
-                "label": "Points",
-            },
-            "secondaryLoyaltyPoints": {
-                "balance": {"string": f"{points}/{threshold}"},
-                "label": "Progress",
+                "balance": {"int": points},
+                "label": "Stamps",
             },
             "barcode": {
                 "type": "QR_CODE",
                 "value": pass_obj.serial_number,
-                "alternateText": pass_obj.serial_number,
+                "alternateText": "Scan to validate",
             },
             "textModulesData": [
                 {
@@ -231,12 +253,8 @@ class GoogleWalletService:
 
         patch_payload = {
             "loyaltyPoints": {
-                "balance": {"string": str(points)},
-                "label": "Points",
-            },
-            "secondaryLoyaltyPoints": {
-                "balance": {"string": f"{points}/{threshold}"},
-                "label": "Progress",
+                "balance": {"int": points},
+                "label": "Stamps",
             },
             "textModulesData": [
                 {
