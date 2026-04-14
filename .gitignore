@@ -1,0 +1,16 @@
+*.pyc
+*.txt
+*.png
+
+# Environment files
+.env
+.env.*
+*.env
+
+# Google service account credentials — never commit
+*.json
+
+# Apple Wallet certificates
+*.p12
+*.pem
+*.cer
