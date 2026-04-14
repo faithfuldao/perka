@@ -8,8 +8,8 @@ import google.auth.transport.requests
 
 SERVICE_ACCOUNT_JSON = "backend/perka-493308-5232764f250e.json"
 ISSUER_ID = "3388000000023114440"
-CLASS_ID = f"{ISSUER_ID}.Unusual_Loyalt6"
-OBJECT_ID = f"{ISSUER_ID}.victor_test_6"
+CLASS_ID = f"{ISSUER_ID}.Unusual_Loyalt7"
+OBJECT_ID = f"{ISSUER_ID}.victor_test_7"
 
 with open(SERVICE_ACCOUNT_JSON) as f:
     sa = json.load(f)
@@ -31,7 +31,7 @@ object_payload = {
     "accountName": "Victor",
     "loyaltyPoints": {
         "balance": {"int": 0},
-        "label": "Stamps"
+        "label": "스탬프"
     },
 }
 
