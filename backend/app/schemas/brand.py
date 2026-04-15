@@ -17,6 +17,7 @@ class BrandBase(BaseModel):
     reward_threshold: int = Field(default=10, ge=1)
     apple_pass_type_id: Optional[str] = None
     google_issuer_id: Optional[str] = None
+    google_hero_image_url: Optional[str] = None
 
 
 class BrandCreate(BrandBase):
@@ -33,6 +34,7 @@ class BrandUpdate(BaseModel):
     reward_threshold: Optional[int] = Field(None, ge=1)
     apple_pass_type_id: Optional[str] = None
     google_issuer_id: Optional[str] = None
+    google_hero_image_url: Optional[str] = None
 
 
 class BrandRead(BrandBase):

@@ -7,14 +7,13 @@ import logging
 import zipfile
 from typing import Any
 
-import boto3
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.hazmat.primitives.serialization.pkcs7 import (
     PKCS7Options,
     PKCS7SignatureBuilder,
 )
-from cryptography.x509 import load_pem_x509_certificate
+from cryptography.x509 import load_der_x509_certificate, load_pem_x509_certificate
 
 from app.config import get_settings
 from app.models.brand import Brand
@@ -41,10 +40,10 @@ class AppleWalletService:
       3. Create a PKCS#7 detached signature of manifest.json using the brand's
          Pass Type ID certificate and Apple's WWDR intermediate certificate.
       4. Zip pass.json + manifest.json + signature → .pkpass archive.
-      5. Upload to S3, return a presigned download URL.
 
-    When a customer opens the URL on iPhone, iOS recognises the
-    ``application/vnd.apple.pkpass`` content-type and adds the pass to Wallet.
+    The .pkpass bytes are served directly by the ``GET /apple-wallet/passes/{serial}``
+    endpoint — no S3 or file hosting needed. iOS detects
+    ``application/vnd.apple.pkpass`` and adds the pass to Wallet automatically.
     """
 
     def __init__(self, brand: Brand) -> None:
@@ -56,6 +55,7 @@ class AppleWalletService:
     def _load_p12_bytes(self) -> bytes:
         """Fetch the .p12 cert bytes from S3 or a local dev path."""
         if self._brand.apple_cert_s3_key:
+            import boto3
             s = self._settings
             s3 = boto3.client(
                 "s3",
@@ -111,7 +111,10 @@ class AppleWalletService:
                 "Download the Apple WWDR G4 certificate and configure the path."
             )
         with open(path, "rb") as fh:
-            return load_pem_x509_certificate(fh.read())
+            data = fh.read()
+        if data.lstrip().startswith(b"-----"):
+            return load_pem_x509_certificate(data)
+        return load_der_x509_certificate(data)
 
     # ── pass.json ─────────────────────────────────────────────────────────────
 
@@ -131,9 +134,9 @@ class AppleWalletService:
         Field layout on the front of the card:
         ┌─────────────────────────────────┐
         │ [logo]           STAMPS  <pts>  │  ← headerFields
-        │         <brand name>            │  ← primaryFields (logoText)
-        │ MEMBER           FREE REWARD AT │
-        │ <email/phone>    <threshold>    │  ← secondaryFields
+        │       [strip image]             │  ← primaryFields empty (no text overlay)
+        │ 남은 스탬프                       │  ← secondaryFields
+        │ MEMBER  <email/phone>           │  ← auxiliaryFields
         └─────────────────────────────────┘
         Back of the card:
           • About blurb
@@ -156,36 +159,29 @@ class AppleWalletService:
             "foregroundColor": self._hex_to_rgb(brand.secondary_color),
             "labelColor": self._hex_to_rgb(brand.secondary_color),
             "logoText": brand.name,
-            # webServiceURL enables Apple to call back for live pass updates via APNs
-            "webServiceURL": f"{s.API_BASE_URL.rstrip('/')}/apple-wallet/",
-            "authenticationToken": pass_obj.serial_number,
             "storeCard": {
                 "headerFields": [
                     {
                         "key": "points",
-                        "label": "STAMPS",
+                        "label": "스탬프",
                         "value": str(points),
                         "textAlignment": "PKTextAlignmentRight",
                     }
                 ],
-                "primaryFields": [
+                "primaryFields": [],
+                "secondaryFields": [
+                    {
+                        "key": "stamps_to_go",
+                        "label": "남은 스탬프",
+                        "value": str(remaining),
+                    },
+                ],
+                "auxiliaryFields": [
                     {
                         "key": "member",
                         "label": "MEMBER",
                         "value": user.email or user.phone or "Customer",
                     }
-                ],
-                "secondaryFields": [
-                    {
-                        "key": "reward_at",
-                        "label": "FREE REWARD AT",
-                        "value": str(threshold),
-                    },
-                    {
-                        "key": "stamps_to_go",
-                        "label": "TO GO",
-                        "value": str(remaining),
-                    },
                 ],
                 "backFields": [
                     {
@@ -210,7 +206,6 @@ class AppleWalletService:
                     "message": pass_obj.serial_number,
                     "format": "PKBarcodeFormatQR",
                     "messageEncoding": "iso-8859-1",
-                    "altText": "Scan to earn stamps",
                 }
             ],
         }
@@ -260,44 +255,20 @@ class AppleWalletService:
                 zf.writestr(name, data)
         return buf.getvalue()
 
-    # ── S3 persistence ────────────────────────────────────────────────────────
-
-    def _s3_client(self) -> Any:
-        s = self._settings
-        return boto3.client(
-            "s3",
-            region_name=s.S3_REGION,
-            aws_access_key_id=s.S3_ACCESS_KEY_ID,
-            aws_secret_access_key=s.S3_SECRET_ACCESS_KEY,
-            endpoint_url=s.S3_ENDPOINT_URL or None,
-        )
-
-    def _upload_pkpass(self, serial_number: str, pkpass_bytes: bytes) -> str:
-        """
-        Upload the .pkpass bundle to S3 and return a 1-hour presigned download URL.
-        The object key is deterministic so re-uploads overwrite the previous version.
-        """
-        s = self._settings
-        s3 = self._s3_client()
-        key = f"passes/apple/{serial_number}.pkpass"
-        s3.put_object(
-            Bucket=s.S3_BUCKET,
-            Key=key,
-            Body=pkpass_bytes,
-            ContentType="application/vnd.apple.pkpass",
-        )
-        return s3.generate_presigned_url(
-            "get_object",
-            Params={"Bucket": s.S3_BUCKET, "Key": key},
-            ExpiresIn=3600,
-        )
-
     # ── Public API ────────────────────────────────────────────────────────────
 
-    async def create_pass(self, pass_obj: Pass, user: User) -> str:
+    def build_pkpass_bytes(
+        self,
+        pass_obj: Pass,
+        user: User,
+        icon_bytes: bytes | None = None,
+        strip_bytes: bytes | None = None,
+    ) -> bytes:
         """
-        Build, sign, and upload a .pkpass bundle.
-        Returns a presigned S3 URL the customer opens on iPhone to add the pass to Wallet.
+        Build and sign a .pkpass bundle, returning the raw ZIP bytes.
+        Called by the download endpoint to stream the pass directly to the device.
+        ``icon_bytes`` should be PNG image data; used for icon.png, icon@2x.png and logo.png.
+        ``strip_bytes`` is a wide hero image (640×168 @1x recommended); used for strip.png.
         """
         if not self._brand.apple_pass_type_id:
             raise ValueError(
@@ -311,9 +282,17 @@ class AppleWalletService:
             self._build_pass_json(pass_obj, user), ensure_ascii=False
         ).encode()
 
-        # content_files are the files that get hashed into manifest.json.
-        # Add icon.png / logo.png here once brand image downloads are wired up.
         content_files: dict[str, bytes] = {"pass.json": pass_json_bytes}
+        if icon_bytes:
+            content_files["icon.png"] = icon_bytes
+            content_files["icon@2x.png"] = icon_bytes
+            # logo.png renders as the image in the top-left of the pass header
+            content_files["logo.png"] = icon_bytes
+            content_files["logo@2x.png"] = icon_bytes
+        if strip_bytes:
+            # strip.png is the wide hero image shown below the header
+            content_files["strip.png"] = strip_bytes
+            content_files["strip@2x.png"] = strip_bytes
 
         manifest_bytes = self._build_manifest(content_files)
         signature_bytes = self._sign_manifest(manifest_bytes, private_key, cert, wwdr_cert)
@@ -324,23 +303,28 @@ class AppleWalletService:
             "signature": signature_bytes,
         }
 
-        pkpass_bytes = self._bundle_pkpass(bundle)
-        url = self._upload_pkpass(pass_obj.serial_number, pkpass_bytes)
-        logger.info("Created Apple Wallet pass %s for brand %s.", pass_obj.serial_number, self._brand.slug)
-        return url
+        return self._bundle_pkpass(bundle)
+
+    def pass_download_url(self, pass_obj: Pass) -> str:
+        """Return the URL iOS will open to download the .pkpass."""
+        base = self._settings.API_BASE_URL.rstrip("/")
+        return f"{base}/apple-wallet/passes/{pass_obj.serial_number}"
+
+    async def create_pass(self, pass_obj: Pass, user: User) -> str:
+        """
+        Return the download URL for this pass.
+        The .pkpass is built on-demand when the device hits the endpoint.
+        """
+        logger.info("Registered Apple Wallet pass %s for brand %s.", pass_obj.serial_number, self._brand.slug)
+        return self.pass_download_url(pass_obj)
 
     async def update_pass_points(self, pass_obj: Pass, user: User) -> None:
         """
-        Rebuild and re-upload the .pkpass with the current point balance.
-
-        The deterministic S3 key means the file is overwritten in place.
-        Note: this does NOT push a live notification to the device — that requires
-        the APNs push flow (implement webServiceURL endpoints to enable it).
+        No-op for the direct-serve approach — the endpoint always builds
+        the pass fresh from the database, so points are up to date automatically.
         """
-        await self.create_pass(pass_obj, user)
         logger.info(
-            "Rebuilt Apple Wallet pass %s (points=%d). "
-            "Device will pick up changes on next manual refresh.",
+            "Apple Wallet pass %s will reflect updated points (%d) on next download.",
             pass_obj.serial_number,
             pass_obj.points,
         )

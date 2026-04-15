@@ -30,23 +30,17 @@ class Settings(BaseSettings):
     S3_ENDPOINT_URL: str = ""
 
     # ── Apple Wallet ──────────────────────────────────────────
-    # 10-character Apple Developer team ID (shown in developer.apple.com/account)
     APPLE_TEAM_ID: str = ""
-    # Fernet key used to encrypt/decrypt brand cert passwords stored in the DB
     APPLE_CERT_ENCRYPTION_KEY: str = ""
-    # Dev fallbacks (leave empty in production — use brand.apple_cert_s3_key instead)
     APPLE_CERT_P12_PATH: str = ""
     APPLE_CERT_PASSWORD: str = ""
-    # Path to Apple WWDR G4 PEM cert (download from https://www.apple.com/certificateauthority/)
     APPLE_WWDR_CERT_PATH: str = ""
-    # Public base URL of this API, used as webServiceURL in pass.json
     API_BASE_URL: str = "http://localhost:8000"
 
     # ── Google Wallet ─────────────────────────────────────────
     GOOGLE_SERVICE_ACCOUNT_JSON_PATH: str = ""
 
     # ── CORS ──────────────────────────────────────────────────
-    # Comma-separated string, e.g. "http://localhost:3000,http://localhost:5173"
     CORS_ORIGINS: str = "http://localhost:3000"
 
     @property

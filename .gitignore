@@ -9,7 +9,14 @@
 # Google service account credentials — never commit
 *.json
 
-# Apple Wallet certificates
+# Apple Wallet certificates and keys
 *.p12
 *.pem
 *.cer
+*.key
+*.csr
+*.pkpass
+
+# Generated test artifacts
+*.png
+wallet_qr.png

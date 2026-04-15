@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import auth, brands, enrollment, locations, passes, staff
+from app.routers import apple_wallet, auth, brands, enrollment, locations, passes, staff
 
 settings = get_settings()
 
@@ -32,6 +32,7 @@ app.include_router(locations.router, prefix="/brands/{brand_id}/locations", tags
 app.include_router(staff.router, prefix="/brands/{brand_id}/staff", tags=["staff"])
 app.include_router(enrollment.router, prefix="/enroll", tags=["enrollment"])
 app.include_router(passes.router, prefix="/passes", tags=["passes"])
+app.include_router(apple_wallet.router, prefix="/apple-wallet", tags=["apple-wallet"])
 
 
 @app.get("/health", tags=["health"])
