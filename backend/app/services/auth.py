@@ -22,7 +22,7 @@ async def authenticate_staff(
     staff = result.scalar_one_or_none()
 
     # Verify against a dummy hash when staff not found to maintain constant time.
-    _dummy = "$2b$12$KIXmM5j3E5j2E5j2E5j2Eug5VKJ5VKJ5VKJ5VKJ5VKJ5VKJ5VKJ5"
+    _dummy = "$2b$12$KIXmM5j3E5j2E5j2E5j2EuAK9accLDF/XMumBpFBGDfCVQjJCJBu"
     if staff is None:
         verify_password(password, _dummy)
         return None

@@ -203,7 +203,7 @@ class AppleWalletService:
             # legacy barcode (singular) key for backward compatibility.
             "barcodes": [
                 {
-                    "message": pass_obj.serial_number,
+                    "message": f"{self._settings.API_BASE_URL.rstrip('/')}/scan/{pass_obj.serial_number}",
                     "format": "PKBarcodeFormatQR",
                     "messageEncoding": "iso-8859-1",
                 }

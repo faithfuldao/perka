@@ -40,11 +40,10 @@ def enrollment_url(base_url: str, qr_token: str) -> str:
     return f"{base_url.rstrip('/')}/enroll/{qr_token}"
 
 
-def pass_qr_content(serial_number: str) -> str:
+def pass_qr_content(serial_number: str, base_url: str) -> str:
     """
-    Return the string encoded in the QR on the customer's pass.
+    Return the URL encoded in the QR on the customer's pass.
 
-    We use a plain serial number so any backend can resolve it; the
-    mobile wallet app does not need an internet connection to display the QR.
+    Encodes a full URL so the phone camera opens the staff scan page directly.
     """
-    return serial_number
+    return f"{base_url.rstrip('/')}/scan/{serial_number}"

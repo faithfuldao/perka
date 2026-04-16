@@ -183,7 +183,7 @@ class GoogleWalletService:
             },
             "barcode": {
                 "type": "QR_CODE",
-                "value": pass_obj.serial_number,
+                "value": f"{get_settings().API_BASE_URL.rstrip('/')}/scan/{pass_obj.serial_number}",
                 "alternateText": "Scan to validate",
             },
             "textModulesData": [

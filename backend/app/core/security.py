@@ -3,14 +3,12 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from app.config import get_settings
 
 settings = get_settings()
-
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 ALGORITHM = "HS256"
 
@@ -19,12 +17,15 @@ ALGORITHM = "HS256"
 
 def hash_password(password: str) -> str:
     """Return a bcrypt hash of *password*."""
-    return _pwd_context.hash(password)
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt(12)).decode()
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Return True if *plain_password* matches *hashed_password*."""
-    return _pwd_context.verify(plain_password, hashed_password)
+    try:
+        return bcrypt.checkpw(plain_password.encode(), hashed_password.encode())
+    except Exception:
+        return False
 
 
 # ── JWT helpers ───────────────────────────────────────────────────────────────
