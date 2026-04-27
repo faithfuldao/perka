@@ -4,13 +4,17 @@ import uuid
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.deps import require_admin_for_brand
 from app.core.security import hash_password
 from app.database import get_db
+from app.models.location import Location
 from app.models.staff import Staff
+from app.schemas.location import LocationRead
 from app.schemas.staff import StaffCreate, StaffRead
 
 router = APIRouter()
@@ -97,7 +101,49 @@ async def delete_staff_member(
     await db.delete(member)
 
 
+@router.put(
+    "/{staff_id}/locations",
+    response_model=List[LocationRead],
+    summary="Set locations for a staff member (admin only)",
+)
+async def set_staff_locations(
+    brand_id: uuid.UUID,
+    staff_id: uuid.UUID,
+    body: _LocationIds,
+    db: AsyncSession = Depends(get_db),
+    _: Staff = Depends(require_admin_for_brand),
+) -> List[Location]:
+    member = await db.execute(
+        select(Staff)
+        .where(Staff.id == staff_id, Staff.brand_id == brand_id)
+        .options(selectinload(Staff.locations))
+    )
+    staff = member.scalar_one_or_none()
+    if staff is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staff member not found.")
+
+    locs_result = await db.execute(
+        select(Location).where(
+            Location.id.in_(body.location_ids),
+            Location.brand_id == brand_id,
+        )
+    )
+    locations = list(locs_result.scalars().all())
+    if len(locations) != len(body.location_ids):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="One or more location IDs are invalid or do not belong to this brand.",
+        )
+    staff.locations = locations
+    await db.flush()
+    return locations
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+
+class _LocationIds(BaseModel):
+    location_ids: List[uuid.UUID]
 
 async def _get_or_404(
     db: AsyncSession, brand_id: uuid.UUID, staff_id: uuid.UUID

@@ -150,6 +150,8 @@ class AppleWalletService:
 
         return {
             "formatVersion": 1,
+            "webServiceURL": f"{s.API_BASE_URL.rstrip('/')}/apple-wallet",
+            "authenticationToken": pass_obj.authentication_token,
             "passTypeIdentifier": brand.apple_pass_type_id,
             "serialNumber": pass_obj.serial_number,
             "teamIdentifier": s.APPLE_TEAM_ID,
@@ -160,29 +162,21 @@ class AppleWalletService:
             "labelColor": self._hex_to_rgb(brand.secondary_color),
             "logoText": brand.name,
             "storeCard": {
-                "headerFields": [
-                    {
-                        "key": "points",
-                        "label": "스탬프",
-                        "value": str(points),
-                        "textAlignment": "PKTextAlignmentRight",
-                    }
-                ],
+                "headerFields": [],
                 "primaryFields": [],
                 "secondaryFields": [
+                    {
+                        "key": "reward_at",
+                        "label": "무료 리워드",
+                        "value": str(threshold),
+                    },
                     {
                         "key": "stamps_to_go",
                         "label": "남은 스탬프",
                         "value": str(remaining),
                     },
                 ],
-                "auxiliaryFields": [
-                    {
-                        "key": "member",
-                        "label": "MEMBER",
-                        "value": user.email or user.phone or "Customer",
-                    }
-                ],
+                "auxiliaryFields": [],
                 "backFields": [
                     {
                         "key": "about",

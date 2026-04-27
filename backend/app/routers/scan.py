@@ -269,6 +269,7 @@ async function loadScan() {
       show("login-view"); return;
     }
     show("scan-view");
+    doAward();
   } catch(e) { toast(e.message); show("login-view"); }
 }
 

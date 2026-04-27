@@ -38,6 +38,9 @@ class Pass(Base):
     serial_number: Mapped[str] = mapped_column(
         String(36), unique=True, nullable=False, default=lambda: str(uuid.uuid4())
     )
+    authentication_token: Mapped[str] = mapped_column(
+        String(64), nullable=False, default=lambda: uuid.uuid4().hex
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

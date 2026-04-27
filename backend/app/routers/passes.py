@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import logging
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.core.deps import get_current_staff
 from app.database import get_db
 from app.models.pass_ import Pass, PassPlatform
@@ -100,11 +102,12 @@ async def award_visit_points(
             svc = AppleWalletService(loyalty_pass.brand)
             await svc.update_pass_points(loyalty_pass, loyalty_pass.user)
         except Exception:
-            # Best-effort: points are committed; pass will sync on next open.
             logger.exception(
                 "Apple Wallet rebuild failed for pass %s; points were still awarded.",
                 serial_number,
             )
+        # Send APNs push to all registered devices (best-effort)
+        await _push_apple_pass_update(db, loyalty_pass)
 
     return AwardPointsResponse(
         serial_number=loyalty_pass.serial_number,
@@ -116,6 +119,58 @@ async def award_visit_points(
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+async def _push_apple_pass_update(db: AsyncSession, loyalty_pass: Pass) -> None:
+    """Send APNs push notifications to all devices registered for this pass."""
+    from app.models.apple_device_registration import AppleDeviceRegistration
+
+    settings = get_settings()
+    if not settings.APPLE_APNS_KEY_PATH or not settings.APPLE_APNS_KEY_ID:
+        return  # APNs not configured, skip
+
+    regs_result = await db.execute(
+        select(AppleDeviceRegistration).where(
+            AppleDeviceRegistration.pass_serial_number == loyalty_pass.serial_number
+        )
+    )
+    registrations = regs_result.scalars().all()
+    if not registrations:
+        return
+
+    # Build APNs JWT
+    try:
+        with open(settings.APPLE_APNS_KEY_PATH, "r") as f:
+            apns_key = f.read()
+        from jose import jwt as jose_jwt
+        import time as _time
+        payload = {"iss": settings.APPLE_TEAM_ID, "iat": int(_time.time())}
+        headers = {"alg": "ES256", "kid": settings.APPLE_APNS_KEY_ID}
+        apns_token = jose_jwt.encode(payload, apns_key, algorithm="ES256", headers=headers)
+    except Exception:
+        logger.exception("Failed to build APNs JWT; skipping push for pass %s", loyalty_pass.serial_number)
+        return
+
+    apns_host = "api.sandbox.push.apple.com" if not settings.is_production else "api.push.apple.com"
+    pass_type_id = loyalty_pass.brand.apple_pass_type_id or ""
+
+    async with httpx.AsyncClient(http2=True, timeout=10) as client:
+        for reg in registrations:
+            try:
+                resp = await client.post(
+                    f"https://{apns_host}/3/device/{reg.push_token}",
+                    json={"aps": {}},
+                    headers={
+                        "Authorization": f"Bearer {apns_token}",
+                        "apns-topic": pass_type_id,
+                        "apns-push-type": "background",
+                        "apns-priority": "5",
+                    },
+                )
+                if resp.status_code not in (200, 201):
+                    logger.warning("APNs push failed for device %s: %s", reg.device_library_identifier, resp.text)
+            except Exception:
+                logger.exception("APNs push exception for device %s", reg.device_library_identifier)
+
 
 async def _get_pass_or_404(db: AsyncSession, serial_number: str) -> Pass:
     result = await db.execute(

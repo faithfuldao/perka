@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     APPLE_CERT_PASSWORD: str = ""
     APPLE_WWDR_CERT_PATH: str = ""
     API_BASE_URL: str = "http://localhost:8000"
+    APPLE_APNS_KEY_PATH: str = ""   # Path to .p8 APNs Auth Key file
+    APPLE_APNS_KEY_ID: str = ""     # 10-char key ID from Apple Developer portal
 
     # ── Google Wallet ─────────────────────────────────────────
     GOOGLE_SERVICE_ACCOUNT_JSON_PATH: str = ""
