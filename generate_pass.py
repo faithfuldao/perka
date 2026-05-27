@@ -131,7 +131,7 @@ headers = {"Authorization": f"Bearer {credentials.token}", "Content-Type": "appl
 class_payload = {
     "id": class_id,
     "issuerName": cfg["issuer_name"],
-    "programName": "포인트 적립",
+    "programName": "Loyalty Program",
     "reviewStatus": "underReview",
     "rewardsTierLabel": "Collect stamps",
     "rewardsTier": f"Free reward at {cfg['reward_threshold']} stamps",
@@ -158,7 +158,7 @@ object_payload = {
     "accountName": test_user["account_name"],
     "loyaltyPoints": {
         "balance": {"int": 0},
-        "label": "스탬프",
+        "label": "Stamps",
     },
 }
 
