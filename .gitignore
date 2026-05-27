@@ -18,5 +18,4 @@
 *.pkpass
 
 # Generated test artifacts
-*.png
-wallet_qr.png
+
