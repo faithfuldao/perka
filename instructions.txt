@@ -1,0 +1,26 @@
+Standard link: https://drive.google.com/file/d/123xyz/view?usp=sharing
+
+Convert it to this: https://drive.google.com/uc?export=download&id=123xyz
+
+37.6414407  127.03020635
+
+https://drive.google.com/uc?export=download&id=18PlxNk9z7NT3uBg-rnDqRrlX_F1hc0BR
+
+#b47dcb
+
+Welcome to the unusual
+Unusual Loyalty Program
+
+-adding a new_shop to pass_brands.json:
+    "newshop": {
+        "name": "...",
+        "issuer_name": "...",
+        "primary_color": "#RRGGBB",
+        "secondary_color": "#000000",
+        "reward_threshold": 10,
+        "logo_url": "...",
+        "hero_url": "...",
+        "apple": { "pass_type_id": "pass.com.perka.newshop", "cert_p12_path": "backend/newshop.p12" },
+        "google": { "issuer_id": "...", "class_suffix": "...", "object_suffix": "...", "service_account_json": "backend/perka-xxx.json" },
+        "test_user": { "email": "...", "account_id": "...", "account_name": "..." }
+        }
