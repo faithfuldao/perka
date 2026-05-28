@@ -11,6 +11,8 @@ https://drive.google.com/uc?export=download&id=18PlxNk9z7NT3uBg-rnDqRrlX_F1hc0BR
 Welcome to the unusual
 Unusual Loyalty Program
 
+-Google issuer id: 3388000000023114440
+
 -adding a new_shop to pass_brands.json:
     "newshop": {
         "name": "...",
