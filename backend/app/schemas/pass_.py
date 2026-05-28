@@ -43,3 +43,14 @@ class AwardPointsResponse(BaseModel):
     # Set when the pass is a Google Wallet pass and the update succeeded.
     # None for Apple passes or if the wallet push was skipped.
     save_url: Optional[str] = None
+
+
+class RedeemRequest(BaseModel):
+    location_id: uuid.UUID
+    note: Optional[str] = None
+
+
+class RedeemResponse(BaseModel):
+    serial_number: str
+    points_deducted: int
+    total_points: int

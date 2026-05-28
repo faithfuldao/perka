@@ -4,14 +4,17 @@ import uuid
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.core.deps import require_admin_for_brand, require_staff_for_brand
 from app.database import get_db
 from app.models.location import Location
 from app.models.staff import Staff
 from app.schemas.location import LocationCreate, LocationRead, LocationUpdate
+from app.services.qr import enrollment_url, generate_qr_bytes
 
 router = APIRouter()
 
@@ -83,6 +86,25 @@ async def update_location(
     await db.flush()
     await db.refresh(location)
     return location
+
+
+@router.get(
+    "/{location_id}/qr.png",
+    summary="Download enrollment QR code for a location (PNG)",
+    response_class=Response,
+    responses={200: {"content": {"image/png": {}}}},
+)
+async def get_location_qr(
+    brand_id: uuid.UUID,
+    location_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _: Staff = Depends(require_staff_for_brand),
+) -> Response:
+    location = await _get_or_404(db, brand_id, location_id)
+    settings = get_settings()
+    url = enrollment_url(settings.API_BASE_URL, location.qr_token)
+    png_bytes = generate_qr_bytes(url)
+    return Response(content=png_bytes, media_type="image/png")
 
 
 @router.delete(

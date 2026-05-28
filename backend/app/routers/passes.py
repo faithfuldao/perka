@@ -12,10 +12,10 @@ from app.core.deps import get_current_staff
 from app.database import get_db
 from app.models.pass_ import Pass, PassPlatform
 from app.models.staff import Staff
-from app.schemas.pass_ import AwardPointsRequest, AwardPointsResponse, PassRead
+from app.schemas.pass_ import AwardPointsRequest, AwardPointsResponse, PassRead, RedeemRequest, RedeemResponse
 from app.services.passes.apple import AppleWalletService
 from app.services.passes.google import GoogleWalletService
-from app.services.points import award_points
+from app.services.points import award_points, redeem_reward
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +115,31 @@ async def award_visit_points(
         total_points=loyalty_pass.points,
         reward_earned=reward_earned,
         save_url=save_url,
+    )
+
+
+@router.post(
+    "/{serial_number}/redeem",
+    response_model=RedeemResponse,
+    summary="Redeem a loyalty reward",
+)
+async def redeem_visit_reward(
+    serial_number: str,
+    body: RedeemRequest,
+    db: AsyncSession = Depends(get_db),
+    current_staff: Staff = Depends(get_current_staff),
+) -> RedeemResponse:
+    loyalty_pass, transaction = await redeem_reward(
+        db,
+        serial_number=serial_number,
+        location_id=body.location_id,
+        staff=current_staff,
+        note=body.note,
+    )
+    return RedeemResponse(
+        serial_number=loyalty_pass.serial_number,
+        points_deducted=abs(transaction.delta),
+        total_points=loyalty_pass.points,
     )
 
 

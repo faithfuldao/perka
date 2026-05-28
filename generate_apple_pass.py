@@ -89,13 +89,14 @@ class FakeUser:
 
 print(f"Brand: {cfg['name']} ({args.brand})")
 print("Fetching images…")
+_no_cache = {"Cache-Control": "no-cache", "Pragma": "no-cache"}
 with httpx.Client(timeout=10) as client:
-    logo_resp = client.get(cfg["logo_url"])
+    logo_resp = client.get(cfg["logo_url"], headers=_no_cache)
     logo_resp.raise_for_status()
     icon_bytes = logo_resp.content
     print(f"  logo:  {len(icon_bytes):,} bytes")
 
-    hero_resp = client.get(cfg["hero_url"])
+    hero_resp = client.get(cfg["hero_url"], headers=_no_cache)
     hero_resp.raise_for_status()
     strip_bytes = hero_resp.content
     print(f"  hero:  {len(strip_bytes):,} bytes")

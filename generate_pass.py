@@ -58,9 +58,10 @@ print(f"Brand: {cfg['name']} ({args.brand})\n")
 # ── Fetch shared images ───────────────────────────────────────────────────────
 
 print("Fetching images…")
+_no_cache = {"Cache-Control": "no-cache", "Pragma": "no-cache"}
 with httpx.Client(timeout=10) as client:
-    icon_bytes = client.get(cfg["logo_url"]).raise_for_status().content
-    strip_bytes = client.get(cfg["hero_url"]).raise_for_status().content
+    icon_bytes = client.get(cfg["logo_url"], headers=_no_cache).raise_for_status().content
+    strip_bytes = client.get(cfg["hero_url"], headers=_no_cache).raise_for_status().content
     print(f"  logo: {len(icon_bytes):,} bytes")
     print(f"  hero: {len(strip_bytes):,} bytes")
 
@@ -150,6 +151,9 @@ class_payload = {
     },
 }
 
+api_base_url = os.environ.get("API_BASE_URL", "http://localhost:8000").rstrip("/")
+test_serial = google_cfg.get("object_suffix", object_id)
+
 object_payload = {
     "id": object_id,
     "classId": class_id,
@@ -159,6 +163,11 @@ object_payload = {
     "loyaltyPoints": {
         "balance": {"int": 0},
         "label": "Stamps",
+    },
+    "barcode": {
+        "type": "QR_CODE",
+        "value": f"{api_base_url}/scan/{test_serial}",
+        "alternateText": "Scan to validate",
     },
 }
 
