@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import Depends, HTTPException, Path, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi import Depends, HTTPException, Path, Security, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,13 +12,14 @@ from app.core.security import decode_token
 from app.database import get_db
 from app.models.staff import Staff, StaffRole
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/staff/login")
+bearer_scheme = HTTPBearer(auto_error=True)
 
 
 async def get_current_staff(
-    token: str = Depends(oauth2_scheme),
+    credentials: HTTPAuthorizationCredentials = Security(bearer_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> Staff:
+    token = credentials.credentials
     """
     Decode the Bearer JWT and return the authenticated Staff row.
 
@@ -30,7 +31,7 @@ async def get_current_staff(
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = decode_token(token)
+        payload = decode_token(token)  # token extracted from credentials above
         staff_id_str: str | None = payload.get("sub")
         if staff_id_str is None:
             raise credentials_exception

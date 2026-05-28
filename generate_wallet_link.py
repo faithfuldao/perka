@@ -108,6 +108,8 @@ class_payload = {
     },
 }
 
+api_base_url = os.environ.get("API_BASE_URL", "http://localhost:8000").rstrip("/")
+
 object_payload = {
     "id": object_id,
     "classId": class_id,
@@ -117,6 +119,11 @@ object_payload = {
     "loyaltyPoints": {
         "balance": {"int": args.points},
         "label": "Stamps",
+    },
+    "barcode": {
+        "type": "QR_CODE",
+        "value": f"{api_base_url}/scan/{google_cfg['object_suffix']}",
+        "alternateText": "Scan to validate",
     },
 }
 
@@ -333,12 +340,12 @@ except Exception as exc:
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 
-print("\n" + "─" * 50)
+print("\n" + "-" * 50)
 print(f"  Google QR  -> {args.brand}_google_qr.png   (scan with Android)")
 if apple_qr_path:
     print(f"  Apple QR   -> {args.brand}_apple_qr.png    (scan with iPhone on same Wi-Fi)")
     print(f"  Apple file -> {args.brand}.pkpass           (or AirDrop / Mail to iPhone)")
-print("─" * 50)
+print("-" * 50)
 
 if apple_server:
     print("\nServing Apple pass locally — press Ctrl+C when your iPhone has scanned the QR.")
