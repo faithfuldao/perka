@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import Response
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -152,6 +154,56 @@ async def enroll(
         save_url = await svc.create_pass(new_pass, user)
 
     return EnrollResponse(save_url=save_url)
+
+
+@router.get(
+    "/{qr_token}/apple",
+    summary="Scan QR → direct Apple Wallet pass (no form required)",
+    response_class=Response,
+    responses={200: {"content": {"application/vnd.apple.pkpass": {}}}},
+)
+async def direct_apple_enrollment(
+    qr_token: str,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """
+    Called when a customer scans the counter QR code on iPhone.
+    Creates an anonymous pass and returns the .pkpass file directly.
+    iOS detects application/vnd.apple.pkpass and adds it to Wallet automatically.
+    """
+    location = await _get_location_by_token(db, qr_token)
+    brand = location.brand
+
+    if not brand.apple_pass_type_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="This brand is not configured for Apple Wallet.",
+        )
+
+    user = User(phone=f"anon_{uuid.uuid4().hex[:12]}")
+    db.add(user)
+    await db.flush()
+    await db.refresh(user)
+
+    new_pass = Pass(
+        user_id=user.id,
+        brand_id=brand.id,
+        platform=PassPlatform.apple,
+        points=0,
+    )
+    db.add(new_pass)
+    await db.flush()
+    await db.refresh(new_pass)
+    await db.refresh(new_pass, ["brand"])
+
+    svc = AppleWalletService(brand)
+    pkpass_bytes = svc.build_pkpass_bytes(new_pass, user)
+
+    return Response(
+        content=pkpass_bytes,
+        media_type="application/vnd.apple.pkpass",
+        headers={"Content-Disposition": f"attachment; filename={new_pass.serial_number}.pkpass"},
+    )
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
