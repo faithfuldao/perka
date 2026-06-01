@@ -44,11 +44,19 @@ async def scan_data(
     )
     staff_with_locs = staff_result.scalar_one()
 
+    locations = staff_with_locs.locations
+    if not locations:
+        from app.models.location import Location
+        loc_result = await db.execute(
+            select(Location).where(Location.brand_id == current_staff.brand_id)
+        )
+        locations = list(loc_result.scalars().all())
+
     return {
         "loyalty_pass": PassRead.model_validate(loyalty_pass).model_dump(mode="json"),
         "locations": [
             LocationRead.model_validate(loc).model_dump(mode="json")
-            for loc in staff_with_locs.locations
+            for loc in locations
         ],
     }
 

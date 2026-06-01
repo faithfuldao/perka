@@ -5,7 +5,7 @@ import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.responses import Response
+from fastapi.responses import RedirectResponse, Response
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -154,6 +154,69 @@ async def enroll(
         save_url = await svc.create_pass(new_pass, user)
 
     return EnrollResponse(save_url=save_url)
+
+
+@router.get(
+    "/{qr_token}/qr.png",
+    summary="QR code that opens the enrollment page (PNG)",
+    response_class=Response,
+    responses={200: {"content": {"image/png": {}}}},
+)
+async def get_enrollment_qr(
+    qr_token: str,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    from app.services.qr import generate_qr_bytes
+    from app.config import get_settings
+    location = await _get_location_by_token(db, qr_token)  # noqa: F841
+    base = get_settings().API_BASE_URL.rstrip("/")
+    url = f"{base}/enroll/{qr_token}/google"
+    return Response(content=generate_qr_bytes(url), media_type="image/png")
+
+
+@router.get(
+    "/{qr_token}/google",
+    summary="Scan QR → direct Google Wallet add (no form required)",
+    response_class=RedirectResponse,
+)
+async def direct_google_enrollment(
+    qr_token: str,
+    db: AsyncSession = Depends(get_db),
+) -> RedirectResponse:
+    """
+    Called when a customer scans the counter QR code on Android.
+    Creates an anonymous pass and redirects to the Google Wallet save URL.
+    """
+    location = await _get_location_by_token(db, qr_token)
+    brand = location.brand
+
+    if not brand.google_issuer_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="This brand is not configured for Google Wallet.",
+        )
+
+    user = User(phone=f"anon_{uuid.uuid4().hex[:12]}")
+    db.add(user)
+    await db.flush()
+    await db.refresh(user)
+
+    new_pass = Pass(
+        user_id=user.id,
+        brand_id=brand.id,
+        platform=PassPlatform.google,
+        points=0,
+    )
+    db.add(new_pass)
+    await db.flush()
+    await db.refresh(new_pass)
+
+    svc = GoogleWalletService(brand)
+    save_url = await svc.create_pass(new_pass, user)
+    new_pass.platform_pass_id = svc.object_id(new_pass)
+    await db.flush()
+
+    return RedirectResponse(url=save_url, status_code=302)
 
 
 @router.get(
