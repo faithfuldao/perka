@@ -170,8 +170,39 @@ async def get_enrollment_qr(
     from app.config import get_settings
     location = await _get_location_by_token(db, qr_token)  # noqa: F841
     base = get_settings().API_BASE_URL.rstrip("/")
-    url = f"{base}/enroll/{qr_token}/google"
+    url = f"{base}/enroll/{qr_token}/wallet"
     return Response(content=generate_qr_bytes(url), media_type="image/png")
+
+
+@router.get(
+    "/{qr_token}/wallet",
+    summary="Scan QR → auto-detect device and redirect to Apple or Google Wallet",
+    response_class=RedirectResponse,
+)
+async def direct_wallet_enrollment(
+    qr_token: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> RedirectResponse:
+    """
+    Single entry point for the counter QR code.
+    Detects iOS vs Android from User-Agent and routes accordingly.
+    """
+    location = await _get_location_by_token(db, qr_token)
+    brand = location.brand
+    base = str(request.base_url).rstrip("/")
+    ua = request.headers.get("user-agent", "").lower()
+    is_ios = "iphone" in ua or "ipad" in ua
+
+    if is_ios and brand.apple_pass_type_id:
+        return RedirectResponse(url=f"{base}/enroll/{qr_token}/apple", status_code=302)
+    elif brand.google_issuer_id:
+        return RedirectResponse(url=f"{base}/enroll/{qr_token}/google", status_code=302)
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="No wallet configured for this brand.",
+        )
 
 
 @router.get(
