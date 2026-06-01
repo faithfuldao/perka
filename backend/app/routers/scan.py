@@ -52,8 +52,11 @@ async def scan_data(
         )
         locations = list(loc_result.scalars().all())
 
+    await db.refresh(loyalty_pass, ["brand"])
+
     return {
         "loyalty_pass": PassRead.model_validate(loyalty_pass).model_dump(mode="json"),
+        "reward_threshold": loyalty_pass.reward_threshold,
         "locations": [
             LocationRead.model_validate(loc).model_dump(mode="json")
             for loc in locations
@@ -100,6 +103,14 @@ _HTML_TEMPLATE = """\
     .btn-award{background:#16a34a;color:white;margin-top:.5rem;}
     .btn-award:hover{background:#15803d;}
     .btn-award:disabled{opacity:.55;cursor:not-allowed;}
+    .btn-redeem{background:#dc2626;color:white;margin-top:.5rem;}
+    .btn-redeem:hover{background:#b91c1c;}
+    .btn-redeem:disabled{opacity:.55;cursor:not-allowed;}
+    .reward-banner{
+      background:#fef9c3;border:1.5px solid #fde047;border-radius:.75rem;
+      padding:.75rem 1rem;text-align:center;font-weight:700;color:#854d0e;
+      margin-bottom:.75rem;font-size:.9rem;
+    }
     .btn-ghost{background:none;color:#9e8a7e;font-size:.8rem;
       padding:.5rem;margin-top:.75rem;width:auto;font-weight:500;border:none;cursor:pointer;}
     .btn-ghost:hover{color:#6f4e37;}
@@ -186,7 +197,9 @@ _HTML_TEMPLATE = """\
     <hr class="divider" />
   </div>
 
+  <div id="reward-banner" class="reward-banner hidden">Reward earned — redeem below</div>
   <button class="btn btn-award" id="award-btn" onclick="doAward()">+ Award stamp</button>
+  <button class="btn btn-redeem hidden" id="redeem-btn" onclick="doRedeem()">Redeem reward</button>
   <div style="text-align:center">
     <button class="btn-ghost" onclick="doLogout()">Sign out</button>
   </div>
@@ -195,13 +208,13 @@ _HTML_TEMPLATE = """\
 <!-- SUCCESS OVERLAY -->
 <div id="overlay" class="hidden">
   <div class="success-card">
-    <div class="check">
+    <div class="check" id="overlay-icon">
       <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
         <path d="M7 16l6 6 12-12" stroke="#16a34a" stroke-width="3"
               stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </div>
-    <h2>Stamp awarded!</h2>
+    <h2 id="overlay-title">Stamp awarded!</h2>
     <p id="ok-msg"></p>
     <button class="btn-done" onclick="closeOverlay()">Done</button>
   </div>
@@ -225,6 +238,20 @@ function toast(msg, ok) {
   el.className = (ok ? "toast-ok" : "toast-err") + " show";
   clearTimeout(el._t);
   el._t = setTimeout(() => el.classList.remove("show"), 3000);
+}
+
+function updateRewardState(points, threshold) {
+  const hasReward = points >= threshold;
+  $("pts-val").textContent = points;
+  if (hasReward) {
+    show("reward-banner");
+    show("redeem-btn");
+    hide("award-btn");
+  } else {
+    hide("reward-banner");
+    hide("redeem-btn");
+    show("award-btn");
+  }
 }
 
 async function doLogin() {
@@ -258,9 +285,8 @@ async function loadScan() {
     if (!r.ok) { const d = await r.json(); throw new Error(d.detail || "Could not load pass"); }
     const d = await r.json();
     pass = d.loyalty_pass;
+    pass.reward_threshold = d.reward_threshold;
     locs = d.locations;
-
-    $("pts-val").textContent = pass.points;
 
     const sel = $("loc-sel");
     sel.innerHTML = "";
@@ -276,8 +302,11 @@ async function loadScan() {
       toast("No locations assigned to your account. Contact your admin.");
       show("login-view"); return;
     }
+
+    updateRewardState(pass.points, pass.reward_threshold);
     show("scan-view");
-    doAward();
+
+    if (pass.points < pass.reward_threshold) doAward();
   } catch(e) { toast(e.message); show("login-view"); }
 }
 
@@ -298,12 +327,38 @@ async function doAward() {
     if (r.status === 401 || r.status === 403) { doLogout(); return; }
     if (!r.ok) { const d = await r.json(); throw new Error(d.detail || "Failed to award stamp"); }
     const d = await r.json();
-    $("pts-val").textContent = d.total_points;
-    $("ok-msg").textContent = "+" + d.points_awarded + " stamp added. Total: "
-      + d.total_points + " stamps." + (d.reward_earned ? " Reward unlocked!" : "");
+    updateRewardState(d.total_points, pass.reward_threshold);
+    $("overlay-title").textContent = d.reward_earned ? "Reward unlocked!" : "Stamp awarded!";
+    $("ok-msg").textContent = "+" + d.points_awarded + " stamp added. Total: " + d.total_points + " stamps."
+      + (d.reward_earned ? " Customer can redeem on next visit." : "");
     show("overlay");
   } catch(e) { toast(e.message); }
   finally { btn.disabled = false; btn.textContent = "+ Award stamp"; }
+}
+
+async function doRedeem() {
+  const locationId = locs.length === 1 ? locs[0].id : $("loc-sel").value;
+  if (!locationId) { toast("Select a location"); return; }
+  const btn = $("redeem-btn");
+  btn.disabled = true; btn.textContent = "Redeeming…";
+  try {
+    const r = await fetch("/passes/" + SERIAL + "/redeem", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + localStorage.getItem(TK),
+      },
+      body: JSON.stringify({location_id: locationId}),
+    });
+    if (r.status === 401 || r.status === 403) { doLogout(); return; }
+    if (!r.ok) { const d = await r.json(); throw new Error(d.detail || "Failed to redeem reward"); }
+    const d = await r.json();
+    updateRewardState(d.total_points, pass.reward_threshold);
+    $("overlay-title").textContent = "Reward redeemed!";
+    $("ok-msg").textContent = "Reward given. Stamps reset to " + d.total_points + ".";
+    show("overlay");
+  } catch(e) { toast(e.message); }
+  finally { btn.disabled = false; btn.textContent = "Redeem reward"; }
 }
 
 function closeOverlay() { hide("overlay"); }
